@@ -1,22 +1,27 @@
 from logging.config import fileConfig
-
+from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 from sqlalchemy import engine_from_config
 from sqlalchemy import pool
-
 from alembic import context
-
 import sys
 import os
 
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
-
 from PhotoShare.database.models import Base
 from PhotoShare.conf.config import settings
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
-sync_db_url = settings.DB_URL.replace("postgresql+asyncpg", "postgresql+psycopg2")
+
+raw_url = settings.DB_URL.replace("postgresql+asyncpg", "postgresql+psycopg2")
+
+parsed = urlparse(raw_url)
+query = parse_qs(parsed.query)
+query.pop("ssl", None)  # убираем несовместимый с psycopg2 параметр
+new_query = urlencode(query, doseq=True)
+sync_db_url = urlunparse(parsed._replace(query=new_query))
+
 config.set_main_option("sqlalchemy.url", sync_db_url)
 
 # Interpret the config file for Python logging.
@@ -38,15 +43,12 @@ target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     """Run migrations in 'offline' mode.
-
     This configures the context with just a URL
     and not an Engine, though an Engine is acceptable
     here as well.  By skipping the Engine creation
     we don't even need a DBAPI to be available.
-
     Calls to context.execute() here emit the given string to the
     script output.
-
     """
     url = config.get_main_option("sqlalchemy.url")
     context.configure(
@@ -55,17 +57,14 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
-
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
     """Run migrations in 'online' mode.
-
     In this scenario we need to create an Engine
     and associate a connection with the context.
-
     """
     connectable = engine_from_config(
         config.get_section(config.config_ini_section, {}),

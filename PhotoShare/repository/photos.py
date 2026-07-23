@@ -23,7 +23,7 @@ async def create_photo(
         description: str | None,
         owner_id: int,
         tag_names: list[str]
-) -> Photo | None:
+) -> Photo:
     photo = Photo(url=url, description=description, owner_id=owner_id)
 
     for tag_name in tag_names:
@@ -32,7 +32,8 @@ async def create_photo(
 
     db.add(photo)
     await db.commit()
-    return await get_photo_by_id(db, photo.id)
+    await db.refresh(photo, ["tags"])
+    return photo
 
 async def get_photo_by_id(db: AsyncSession, photo_id: int) -> Photo | None:
     result = await db.execute(
